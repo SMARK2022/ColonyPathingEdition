@@ -139,7 +139,7 @@ public abstract class AbstractEntityAIRequestSmelterMixin<J extends AbstractJobC
     {
         return  countOfBurningFurnaces() > 0 || super.hasWorkToDo();
     }
-    
+
     /**
      * @author ARxyt
      * @reason Workers calculated separately
@@ -180,7 +180,7 @@ public abstract class AbstractEntityAIRequestSmelterMixin<J extends AbstractJobC
      * @reason isEmpty && !isLit -> isEmpty || !isLit
      */
     @Overwrite(remap = false)
-    private BlockPos getPositionOfOvenToRetrieveFrom()
+    private BlockPos getFurnaceToRetrieveOutputFrom()
     {
         for (final BlockPos pos : building.getFirstModuleOccurance(FurnaceUserModule.class).getFurnaces())
         {
@@ -271,10 +271,11 @@ public abstract class AbstractEntityAIRequestSmelterMixin<J extends AbstractJobC
      * @reason When picking up, first attempt to give directly to the furnace occupant; if there is no occupant, then attempt to pick up directly.
      */
     @Overwrite(remap = false)
-    private void extractFromFurnaceSlot(final FurnaceBlockEntity furnace, final int slot)
+    private boolean extractFromFurnaceSlot(final FurnaceBlockEntity furnace, final int slot)
     {
+        boolean result = false;
         if(isFurnaceNotOccupied(furnace) || slot != RESULT_SLOT){
-            InventoryUtils.transferItemStackIntoNextFreeSlotInItemHandler(
+            result = InventoryUtils.transferItemStackIntoNextFreeSlotInItemHandler(
                     new InvWrapper(furnace), slot,
                     worker.getInventoryCitizen());
         }
@@ -283,9 +284,11 @@ public abstract class AbstractEntityAIRequestSmelterMixin<J extends AbstractJobC
                     new InvWrapper(furnace), slot,
                     worker.getCitizenColonyHandler().getColony().getCitizen(((FurnaceBlockEntityExtras)furnace).getFurnaceWorker()).getInventory())
             ){
-                InventoryUtils.transferItemStackIntoNextFreeSlotInItemHandler(
+                result = InventoryUtils.transferItemStackIntoNextFreeSlotInItemHandler(
                         new InvWrapper(furnace), slot,
                         worker.getInventoryCitizen());
+            } else {
+                result = true;
             }
         }
 
@@ -297,6 +300,7 @@ public abstract class AbstractEntityAIRequestSmelterMixin<J extends AbstractJobC
             }
             worker.getCitizenExperienceHandler().addExperience(BASE_XP_GAIN);
         }
+        return result;
     }
 
     @Redirect(
@@ -332,7 +336,7 @@ public abstract class AbstractEntityAIRequestSmelterMixin<J extends AbstractJobC
      * @reason Involves result checking after replacement pickup; at this point walkTo is null, requiring extensive code modifications.
      */
     @Overwrite(remap = false)
-    private IAIState retrieveSmeltableFromFurnace() {
+    private IAIState retrieveProductFromFurnace() {
         if ((walkTo == null && !checkRecipeFinish) || currentRequest == null) {
             return START_WORKING;
         }
@@ -520,8 +524,9 @@ public abstract class AbstractEntityAIRequestSmelterMixin<J extends AbstractJobC
     /**
      * @author ARxyt
      * @reason Currently, only the entry conditions have been modified.
+     * MODIFIED: Original method has been deleted, thus requiring change from "Overwrite" to "Unique".
      */
-    @Overwrite(remap = false)
+    @Unique
     private IAIState checkIfAbleToSmelt()
     {
         // We're fully committed currently, try again later.
@@ -549,7 +554,7 @@ public abstract class AbstractEntityAIRequestSmelterMixin<J extends AbstractJobC
                 {
                     randomFurnace = -1;
                     walkTo = pos;
-                    return START_USING_FURNACE;
+                    return FILL_UP_FURNACES;
                 }
             }
             else
@@ -573,3 +578,4 @@ public abstract class AbstractEntityAIRequestSmelterMixin<J extends AbstractJobC
     }
 
 }
+

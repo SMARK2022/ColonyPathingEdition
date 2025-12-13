@@ -16,6 +16,7 @@ import com.minecolonies.core.client.gui.WindowSelectRes;
 import com.minecolonies.core.colony.buildingextensions.FarmField;
 import com.minecolonies.core.items.ItemCrop;
 import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.CropBlock;
@@ -74,7 +75,7 @@ public class WindowCropRotation extends AbstractWindowSkeleton {
      */
     public WindowCropRotation(@NotNull AbstractTileEntityScarecrow tileEntityScarecrow, @NotNull FarmField farmField, @Nullable final BOWindow parent)
     {
-        super(MOD_ID + WINDOW_RESOURCE, parent);
+        super(parent, new ResourceLocation(MOD_ID, WINDOW_RESOURCE.substring(1)));
         this.tileEntityScarecrow = tileEntityScarecrow;
         this.farmField = farmField;
         accessFieldData();

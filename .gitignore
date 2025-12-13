@@ -27,5 +27,7 @@ forge*changelog.txt
 /libs/
 /gradle/
 /run/
+/wrapper/
 
 description.md
+*.log

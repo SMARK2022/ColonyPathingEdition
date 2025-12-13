@@ -67,54 +67,45 @@ public abstract class MinecoloniesAdvancedPathNavigateMixin extends AbstractAdva
             return;
         }
 
-        // Path correction: after dismounting, citizens will always teleport to the next path point, preventing path recalculation caused by random dismount positions.
-        int nodeIndex = this.getPath().getNextNodeIndex();
-        @NotNull final PathPointExtended pEx = (PathPointExtended) (this.getPath().getNode(nodeIndex));
-        if (!pEx.isOnRails()) {
-            ourEntity.stopRiding();
-            entity.remove(Entity.RemovalReason.DISCARDED);
-            ourEntity.teleportTo(pEx.x + 0.5, pEx.y, pEx.z + 0.5);
-            return;
-        }
-        int nextNodeIndex = nodeIndex + 1;
-        if(nextNodeIndex < this.getPath().getNodeCount() - 1) {
-            final PathPointExtended pEx2 = (PathPointExtended) (this.getPath().getNode(nextNodeIndex));
-            if (pEx2.isOnRails()) {
-                this.getPath().advance();
-            }
-        }
-        // Added derailment compensation: if derailed at a turn, they will teleport farther ahead, depending on the current speed.
+        // Only handle derailment (minecart not on rails), do not interfere with MineColonies' own rail transition logic
         if(entity instanceof MinecoloniesMinecart minecoloniesMinecart && !minecoloniesMinecart.isOnRails()) {
-            Vec3 movement = minecoloniesMinecart.getDeltaMovement();
-            double speed = movement.length();
-            nodeIndex = Math.min(this.getPath().getNodeCount() - 1, this.getPath().getNextNodeIndex() + (int)Math.floor(speed / 0.4F));
-            @NotNull final PathPointExtended tpPlace = (PathPointExtended) (Objects.requireNonNull(this.getPath())).getNode(nodeIndex);
-            if(!tpPlace.isOnRails()){
+            int nodeIndex = this.getPath().getNextNodeIndex();
+            @NotNull final PathPointExtended pEx = (PathPointExtended) (this.getPath().getNode(nodeIndex));
+
+            // If the current node is still on rails, teleport the minecart to the safe position
+            if (pEx.isOnRails()) {
+                Vec3 movement = minecoloniesMinecart.getDeltaMovement();
+                double speed = movement.length();
+                int nextIdx = Math.min(this.getPath().getNodeCount() - 1, nodeIndex + (int)Math.floor(speed / 0.4F));
+                @NotNull final PathPointExtended tpPlace = (PathPointExtended) (Objects.requireNonNull(this.getPath()).getNode(nextIdx));
+
+                BlockPos tpPos = tpPlace.asBlockPos();
+                if (minecoloniesMinecart.level().getBlockState(tpPos.below()).is(BlockTags.RAILS)) {
+                    tpPos = tpPos.below();
+                }
+
+                BlockState blockstate = minecoloniesMinecart.level().getBlockState(tpPos);
+                double yOffset = 0.0D;
+                if (blockstate.getBlock() instanceof BaseRailBlock railBlock) {
+                    RailShape railshape = railBlock.getRailDirection(blockstate, level, tpPos, null);
+                    if (railshape.isAscending()) {
+                        yOffset = 0.5D;
+                    }
+                }
+
+                final double x = tpPlace.x + 0.5D;
+                final double y = tpPlace.y + 0.625D + yOffset;
+                final double z = tpPlace.z + 0.5D;
+                minecoloniesMinecart.setPos(x, y, z);
+                minecoloniesMinecart.xo = x;
+                minecoloniesMinecart.yo = y;
+                minecoloniesMinecart.zo = z;
+            } else {
+                // Not on rails and next node is also not on rails - dismount and teleport citizen
                 ourEntity.stopRiding();
                 entity.remove(Entity.RemovalReason.DISCARDED);
-                ourEntity.teleportTo(tpPlace.x + 0.5, tpPlace.y, tpPlace.z + 0.5);
-                return;
+                ourEntity.teleportTo(pEx.x + 0.5, pEx.y, pEx.z + 0.5);
             }
-            BlockPos tpPos = tpPlace.asBlockPos();
-            if (entity.level().getBlockState(tpPos.below()).is(BlockTags.RAILS)) {
-                tpPos = tpPos.below();
-            }
-            BlockState blockstate = entity.level().getBlockState(tpPos);
-            double yOffset = 0.0D;
-            RailShape railshape = blockstate.getBlock() instanceof BaseRailBlock
-                    ? ((BaseRailBlock) blockstate.getBlock()).getRailDirection(blockstate, level, tpPos, null)
-                    : RailShape.NORTH_SOUTH;
-            if (railshape.isAscending()) {
-                yOffset = 0.5D;
-            }
-            final double x = tpPlace.x + 0.5D;
-            final double y = tpPlace.y + 0.625D + yOffset;
-            final double z = tpPlace.z + 0.5D;
-            minecoloniesMinecart.setPos(x, y, z);
-            minecoloniesMinecart.xo = x;
-            minecoloniesMinecart.yo = y;
-            minecoloniesMinecart.zo = z;
-            mob.startRiding(minecoloniesMinecart, true);
         }
     }
 }
