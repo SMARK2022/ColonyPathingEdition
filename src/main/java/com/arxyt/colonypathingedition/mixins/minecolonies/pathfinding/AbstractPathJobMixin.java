@@ -99,7 +99,7 @@ public abstract class AbstractPathJobMixin{
     public abstract int invokeGetGroundHeight(final MNode node, final int x, final int y, final int z);
 
     @Invoker(value="createNode",remap = false)
-    public abstract MNode invokeCreateNode(final MNode parent, final int x, final int y, final int z, final int nodeKey, final double heuristic, final double cost);
+    public abstract MNode invokeCreateNode(final MNode parent, final int x, final int y, final int z, final double heuristic, final double cost);
 
     @Invoker(value="calculateSwimming",remap = false)
     public abstract boolean invokeCalculateSwimming(final BlockState below, final BlockState state, final BlockState above, @Nullable final MNode node);
@@ -610,7 +610,7 @@ public abstract class AbstractPathJobMixin{
             MNode conerNode = nodes.get(nodeKey);
             if (conerNode == null){
                 boolean isPassable = checkConerCollision(conerX, conerY, conerZ);
-                conerNode = invokeCreateNode(null, conerX, conerY, conerZ, nodeKey, node.getHeuristic(), node.getCost());
+                conerNode = invokeCreateNode(null, conerX, conerY, conerZ, node.getHeuristic(), node.getCost());
                 conerNode.setCornerNode(isPassable);
                 conerNode.increaseVisited();
                 if(!isPassable && checkPossiblyPassing(node, nextX, newY, nextZ, conerNode, dX, newY - node.y, dZ)) {
@@ -686,7 +686,7 @@ public abstract class AbstractPathJobMixin{
 
         if (nextNode == null)
         {
-            nextNode = invokeCreateNode(node, nextX, nextY, nextZ, nodeKey, heuristic, cost);
+            nextNode = invokeCreateNode(node, nextX, nextY, nextZ, heuristic, cost);
             nextNode.setOnRails(onRails);
             nextNode.setCornerNode(false);
 

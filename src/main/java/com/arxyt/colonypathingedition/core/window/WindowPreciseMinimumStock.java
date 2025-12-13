@@ -26,7 +26,7 @@ import static com.minecolonies.api.util.constant.WindowConstants.*;
 import static com.minecolonies.api.util.constant.WindowConstants.QUANTITY_LABEL;
 import static com.minecolonies.api.util.constant.WindowConstants.RESOURCE_ICON;
 
-public class WindowPreciseMinimumStock extends AbstractModuleWindow {
+public class WindowPreciseMinimumStock extends AbstractModuleWindow<IMinimumStockModuleView> {
     /**
      * The resource string.
      */
@@ -45,22 +45,19 @@ public class WindowPreciseMinimumStock extends AbstractModuleWindow {
     /**
      * The matching module view to the window.
      */
-    private final IMinimumStockModuleView moduleView;
 
     /**
      * Constructor for the minimum stock window view.
-     *
-     * @param building class extending
+     * @param building the building view (kept for compatibility).
      * @param moduleView the module view.
      */
     public WindowPreciseMinimumStock(
             final IBuildingView building,
-            final IMinimumStockModuleView moduleView)
+            final IMinimumStockModuleView minimumStockModuleView)
     {
-        super(building, AdditionalContants.MOD_ID + RESOURCE_STRING);
+        super(minimumStockModuleView, new ResourceLocation(AdditionalContants.MOD_ID, RESOURCE_STRING.substring(1)));
 
         resourceList = this.window.findPaneOfTypeByID("resourcesstock", ScrollingList.class);
-        this.moduleView = moduleView;
 
         registerButton(STOCK_ADD, this::addStock);
         if (moduleView.hasReachedLimit())

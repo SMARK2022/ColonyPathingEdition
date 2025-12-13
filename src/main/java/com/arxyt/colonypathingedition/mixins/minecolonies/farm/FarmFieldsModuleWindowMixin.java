@@ -8,31 +8,30 @@ import com.ldtteam.blockui.controls.ItemIcon;
 import com.ldtteam.blockui.controls.Text;
 import com.ldtteam.blockui.views.ScrollingList;
 import com.minecolonies.api.colony.buildingextensions.IBuildingExtension;
-import com.minecolonies.api.colony.buildings.views.IBuildingView;
 import com.minecolonies.api.util.BlockPosUtil;
 import com.minecolonies.api.util.constant.Constants;
 import com.minecolonies.core.client.gui.AbstractModuleWindow;
-import com.minecolonies.core.client.gui.modules.FarmFieldsModuleWindow;
 import com.minecolonies.core.colony.buildingextensions.FarmField;
 import com.minecolonies.core.colony.buildings.moduleviews.FieldsModuleView;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.NotNull;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.Shadow;
 
 import static com.minecolonies.api.util.constant.TranslationConstants.FIELD_STATUS;
 import static com.minecolonies.api.util.constant.translation.GuiTranslationConstants.FIELD_LIST_LABEL_DISTANCE;
 
-@Mixin(value = FarmFieldsModuleWindow.class, remap = false)
-public abstract class FarmFieldsModuleWindowMixin extends AbstractModuleWindow {
-    @Shadow(remap = false) @Final private static String HUT_FIELDS_RESOURCE_SUFFIX;
+@Pseudo
+@Mixin(targets = "com.minecolonies.core.client.gui.modules.building.FarmFieldsModuleWindow", remap = false)
+public abstract class FarmFieldsModuleWindowMixin extends AbstractModuleWindow<FieldsModuleView> {
     @Shadow(remap = false) private ScrollingList fieldList;
     @Shadow(remap = false) @Final private static String LIST_FIELDS;
-    @Shadow(remap = false) @Final private FieldsModuleView moduleView;
     @Shadow(remap = false) @Final private static String TAG_ICON;
     @Shadow(remap = false) @Final private static String TAG_STAGE_ICON;
     @Shadow(remap = false) @Final private static String TAG_STAGE_TEXT;
@@ -42,9 +41,10 @@ public abstract class FarmFieldsModuleWindowMixin extends AbstractModuleWindow {
     @Shadow(remap = false) protected abstract void setAssignButtonTexture(ButtonImage button, boolean isOn);
     @Shadow(remap = false) protected abstract void updateUI();
 
-    public FarmFieldsModuleWindowMixin(final IBuildingView building)
+    public FarmFieldsModuleWindowMixin(final FieldsModuleView moduleView)
     {
-        super(building, Constants.MOD_ID + HUT_FIELDS_RESOURCE_SUFFIX);
+        super(moduleView, new ResourceLocation(Constants.MOD_ID, "gui/layouthuts/layoutfarmfields.xml"));
+        throw new RuntimeException("FarmFieldsModuleWindowMixin 类不应被实例化！");
     }
 
     /**
