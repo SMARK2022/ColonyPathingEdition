@@ -43,24 +43,74 @@ public abstract class EntityAIWorkCowboyMixin extends AbstractEntityAIHerder<Job
         super(job);
     }
 
-    @Unique private int milkTimes = 0;
-    @Unique private int stewTimes = 0;
+    /**
+     * @author ARxyt
+     * @reason Fix milking priority being suppressed by breeding/butchering
+     * 修复挤奶优先级被繁殖/屠宰压制的问题
+     */
+    @Overwrite(remap = false)
+    public IAIState decideWhatToDo()
+    {
+        // 先处理冷却
+        if (milkCoolDown > 0)
+        {
+            --milkCoolDown;
+        }
+        if (stewCoolDown > 0)
+        {
+            --stewCoolDown;
+        }
+
+        // 挤奶和盛汤有更高的优先级（在繁殖/屠宰之前）
+        if (building != null)
+        {
+            final BuildingCowboy.HerdingModule module = building.getFirstModuleOccurance(BuildingCowboy.HerdingModule.class);
+
+            // 检查是否有可挤奶的牛
+            if (milkCoolDown == 0 && module.canTryToMilk())
+            {
+                final boolean hasCow = !searchForAnimals(a -> a instanceof Cow && !a.isBaby()).isEmpty();
+                if (hasCow)
+                {
+                    return COWBOY_MILK;
+                }
+            }
+
+            // 检查是否有可盛汤的蘑菇牛
+            if (stewCoolDown == 0 && module.canTryToStew())
+            {
+                final boolean hasMoosh = !searchForAnimals(a -> a instanceof MushroomCow && !a.isBaby()).isEmpty();
+                if (hasMoosh)
+                {
+                    return COWBOY_STEW;
+                }
+            }
+        }
+
+        // 其他操作由父类决策（繁殖、屠宰、饲养）
+        return super.decideWhatToDo();
+    }
 
     /**
      * @author ARxyt
-     * @reason Weird judgement.
+     * @reason Fix milking priority and item stack count handling
+     * 修复挤奶优先级和物品数量处理
      */
     @Overwrite(remap = false)
     private IAIState milkCows()
     {
         worker.getCitizenData().setVisibleStatus(HERD_COW);
 
-        if (!worker.getCitizenInventoryHandler().hasItemInInventory(building.getMilkInputItem().getItem()))
+        // 准备输入物品：总是使用 count=1 的栈
+        final ItemStack milkInputItem = building.getMilkInputItem().copy();
+        milkInputItem.setCount(1);
+
+        if (!worker.getCitizenInventoryHandler().hasItemInInventory(milkInputItem.getItem()))
         {
-            if (InventoryUtils.hasBuildingEnoughElseCount(building, new ItemStorage(building.getMilkInputItem()), 1) > 0
+            if (InventoryUtils.hasBuildingEnoughElseCount(building, new ItemStorage(milkInputItem), 1) > 0
                     && walkToBuilding())
             {
-                checkAndTransferFromHut(building.getMilkInputItem());
+                checkAndTransferFromHut(milkInputItem);
             }
             else
             {
@@ -69,7 +119,8 @@ public abstract class EntityAIWorkCowboyMixin extends AbstractEntityAIHerder<Job
             }
         }
 
-        final Cow cow = searchForAnimals(a -> a instanceof Cow && !(a instanceof MushroomCow) && !a.isBaby()).stream()
+        // 寻找可挤奶的牛（不包括蘑菇牛和幼牛）
+        final Cow cow = searchForAnimals(a -> a instanceof Cow && !a.isBaby()).stream()
                 .map(a -> (Cow) a).findFirst().orElse(null);
 
         if (cow == null)
@@ -78,30 +129,46 @@ public abstract class EntityAIWorkCowboyMixin extends AbstractEntityAIHerder<Job
             return DECIDE;
         }
 
-        walkingToAnimal(cow);
-
-        if (equipItem(InteractionHand.MAIN_HAND, Collections.singletonList(new ItemStorage(building.getMilkInputItem().getItem(), building.getMilkInputItem().getCount()))))
+        // 必须走到牛旁边才能挤奶
+        if (walkingToAnimal(cow))
         {
-            incrementActionsDoneAndDecSaturation();
-            StatsUtil.trackStat(building, MILKING_ATTEMPTS, 1);
-            worker.getCitizenExperienceHandler().addExperience(1.0);
-            if (InventoryUtils.addItemStackToItemHandler(worker.getInventoryCitizen(), building.getMilkOutputItem()))
+            return getState();
+        }
+
+        // 装备物品并执行挤奶
+        if (equipItem(InteractionHand.MAIN_HAND, Collections.singletonList(new ItemStorage(milkInputItem))))
+        {
+            // 准备输出物品
+            final ItemStack milkOutputItem = building.getMilkOutputItem().copy();
+            milkOutputItem.setCount(1);
+
+            // 尝试添加输出物品
+            if (InventoryUtils.addItemStackToItemHandler(worker.getInventoryCitizen(), milkOutputItem))
             {
                 building.getFirstModuleOccurance(BuildingCowboy.HerdingModule.class).onMilked();
-                CitizenItemUtils.setHeldItem(worker, InteractionHand.MAIN_HAND, getItemSlot(building.getMilkOutputItem().getItem()));
-                InventoryUtils.tryRemoveStackFromItemHandler(worker.getInventoryCitizen(), building.getMilkInputItem());
+                CitizenItemUtils.setHeldItem(worker, InteractionHand.MAIN_HAND, getItemSlot(milkOutputItem.getItem()));
+                // 移除一个输入物品
+                InventoryUtils.tryRemoveStackFromItemHandler(worker.getInventoryCitizen(), milkInputItem);
+
+                incrementActionsDoneAndDecSaturation();
+                StatsUtil.trackStat(building, MILKING_ATTEMPTS, 1);
+                worker.getCitizenExperienceHandler().addExperience(1.0);
+
+                // 检查是否还可以继续挤奶
+                if (building.getFirstModuleOccurance(BuildingCowboy.HerdingModule.class).canTryToMilk())
+                {
+                    setDelay(10);
+                    return COWBOY_MILK;
+                }
+                else
+                {
+                    return INVENTORY_FULL;
+                }
             }
-            else{
-                milkTimes = 0;
+            else
+            {
+                // 输出物品插入失败，背包满
                 return INVENTORY_FULL;
-            }
-            if(++ milkTimes > getPrimarySkillLevel() / 10 || !building.getFirstModuleOccurance(BuildingCowboy.HerdingModule.class).canTryToMilk()){
-                milkTimes = 0;
-                return INVENTORY_FULL;
-            }
-            else{
-                setDelay(10);
-                return COWBOY_MILK;
             }
         }
         return DECIDE;
@@ -109,19 +176,23 @@ public abstract class EntityAIWorkCowboyMixin extends AbstractEntityAIHerder<Job
 
     /**
      * @author ARxyt
-     * @reason Weird judgement.
+     * @reason Fix mooshroom stewing priority and item stack count handling
+     * 修复蘑菇牛盛汤优先级和物品数量处理
      */
     @Overwrite(remap = false)
     private IAIState milkMooshrooms()
     {
         worker.getCitizenData().setVisibleStatus(HERD_COW);
 
+        // 准备输入物品：总是使用 count=1 的栈
+        final ItemStack bowlStack = new ItemStack(Items.BOWL, 1);
+
         if (!worker.getCitizenInventoryHandler().hasItemInInventory(Items.BOWL))
         {
-            if (InventoryUtils.hasBuildingEnoughElseCount(building, new ItemStorage(new ItemStack(Items.BOWL, 1)), 1) > 0
+            if (InventoryUtils.hasBuildingEnoughElseCount(building, new ItemStorage(bowlStack), 1) > 0
                     && walkToBuilding())
             {
-                checkAndTransferFromHut(new ItemStack(Items.BOWL, 1));
+                checkAndTransferFromHut(bowlStack);
             }
             else
             {
@@ -130,6 +201,7 @@ public abstract class EntityAIWorkCowboyMixin extends AbstractEntityAIHerder<Job
             }
         }
 
+        // 寻找可盛汤的蘑菇牛（幼牛除外）
         final MushroomCow mooshroom = searchForAnimals(a -> a instanceof MushroomCow && !a.isBaby()).stream()
                 .map(a -> (MushroomCow) a).findFirst().orElse(null);
 
@@ -139,35 +211,56 @@ public abstract class EntityAIWorkCowboyMixin extends AbstractEntityAIHerder<Job
             return DECIDE;
         }
 
-        walkingToAnimal(mooshroom);
+        // 必须走到蘑菇牛旁边才能盛汤
+        if (walkingToAnimal(mooshroom))
+        {
+            return getState();
+        }
 
+        // 装备碗并执行盛汤
         if (equipItem(InteractionHand.MAIN_HAND, Collections.singletonList(new ItemStorage(Items.BOWL))))
         {
             final FakePlayer fakePlayer = FakePlayerFactory.getMinecraft((ServerLevel) worker.level());
-            fakePlayer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.BOWL));
-            incrementActionsDoneAndDecSaturation();
-            StatsUtil.trackStat(building, MILKING_ATTEMPTS, 1);
-            worker.getCitizenExperienceHandler().addExperience(1.0);
+            fakePlayer.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.BOWL, 1));
+
             if (mooshroom.mobInteract(fakePlayer, InteractionHand.MAIN_HAND).equals(InteractionResult.CONSUME))
             {
-                if (InventoryUtils.addItemStackToItemHandler(worker.getInventoryCitizen(), fakePlayer.getMainHandItem()))
+                // 获取输出物品（通常是蘑菇煲汤）
+                ItemStack stewOutput = fakePlayer.getMainHandItem().copy();
+                stewOutput.setCount(1);
+
+                if (InventoryUtils.addItemStackToItemHandler(worker.getInventoryCitizen(), stewOutput))
                 {
                     building.getFirstModuleOccurance(BuildingCowboy.HerdingModule.class).onStewed();
-                    CitizenItemUtils.setHeldItem(worker, InteractionHand.MAIN_HAND, getItemSlot(fakePlayer.getMainHandItem().getItem()));
-                    InventoryUtils.tryRemoveStackFromItemHandler(worker.getInventoryCitizen(), new ItemStack(Items.BOWL));
+                    CitizenItemUtils.setHeldItem(worker, InteractionHand.MAIN_HAND, getItemSlot(stewOutput.getItem()));
+                    // 移除一个碗
+                    InventoryUtils.tryRemoveStackFromItemHandler(worker.getInventoryCitizen(), bowlStack);
+
+                    incrementActionsDoneAndDecSaturation();
+                    StatsUtil.trackStat(building, MILKING_ATTEMPTS, 1);
+                    worker.getCitizenExperienceHandler().addExperience(1.0);
+
+                    // 检查是否还可以继续盛汤
+                    if (building.getFirstModuleOccurance(BuildingCowboy.HerdingModule.class).canTryToStew())
+                    {
+                        setDelay(10);
+                        return COWBOY_STEW;
+                    }
+                    else
+                    {
+                        return INVENTORY_FULL;
+                    }
                 }
-                else{
-                    stewTimes = 0;
+                else
+                {
+                    // 输出物品插入失败，背包满
                     return INVENTORY_FULL;
                 }
             }
-            if(++ stewTimes > getPrimarySkillLevel() / 10 || !building.getFirstModuleOccurance(BuildingCowboy.HerdingModule.class).canTryToStew()) {
-                stewTimes = 0;
-                return INVENTORY_FULL;
-            }
-            else{
-                setDelay(10);
-                return COWBOY_STEW;
+            else
+            {
+                // 交互失败
+                return DECIDE;
             }
         }
         return DECIDE;
