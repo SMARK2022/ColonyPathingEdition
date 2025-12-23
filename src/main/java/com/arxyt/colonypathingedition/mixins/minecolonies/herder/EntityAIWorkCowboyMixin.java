@@ -119,7 +119,7 @@ public abstract class EntityAIWorkCowboyMixin extends AbstractEntityAIHerder<Job
             }
         }
 
-        // 寻找可挤奶的牛（不包括蘑菇牛和幼牛）
+        // 寻找可挤奶的牛
         final Cow cow = searchForAnimals(a -> a instanceof Cow && !a.isBaby()).stream()
                 .map(a -> (Cow) a).findFirst().orElse(null);
 
@@ -129,11 +129,7 @@ public abstract class EntityAIWorkCowboyMixin extends AbstractEntityAIHerder<Job
             return DECIDE;
         }
 
-        // 必须走到牛旁边才能挤奶
-        if (walkingToAnimal(cow))
-        {
-            return getState();
-        }
+        walkingToAnimal(cow);
 
         // 装备物品并执行挤奶
         if (equipItem(InteractionHand.MAIN_HAND, Collections.singletonList(new ItemStorage(milkInputItem))))
@@ -211,11 +207,7 @@ public abstract class EntityAIWorkCowboyMixin extends AbstractEntityAIHerder<Job
             return DECIDE;
         }
 
-        // 必须走到蘑菇牛旁边才能盛汤
-        if (walkingToAnimal(mooshroom))
-        {
-            return getState();
-        }
+        walkingToAnimal(mooshroom);
 
         // 装备碗并执行盛汤
         if (equipItem(InteractionHand.MAIN_HAND, Collections.singletonList(new ItemStorage(Items.BOWL))))
